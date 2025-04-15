@@ -1,4 +1,5 @@
 const OTP = require('../models/otpModel');
+const userModel = require('../models/userModel');
 const User = require('../models/userModel');
 const generateOTP = require('../utils/otpGenerator');
 
@@ -30,3 +31,19 @@ exports.verifyOTP = async (req, res) => {
     res.status(500).json({ message: 'Error verifying OTP', error: err.message });
   }
 };
+
+
+//Get Users
+exports.GetUsers= async (req,res)=>{
+  try {
+    let Users= await userModel.find()
+    if(!Users){
+      return res.status(400).json({success:false, message:"User not found"})
+    }
+    return res.status(200).json({success:true, Users, message:"User found successfully"})
+  } catch (error) {
+    console.log('error',error)
+    res.status(500).json({success:false, message:"Internal sever error"})
+    
+  }
+}
