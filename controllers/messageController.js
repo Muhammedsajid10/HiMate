@@ -1,68 +1,12 @@
-// import chatModel from "../models/chatModel";
-// import MessageModal from "../models/messageModel";
-
-// export const CreateMessage=async(req,res)=>{
-//     try {
-//         const {senderId, receiverId, message}=req.body
-//         if(!senderId || !receicerId || !message){
-//             return res.status(400).json({
-//                 success:false,
-//                 message:`${senderId ? "Sender Id": !receiverId ? "Receiver Id": "Message"} is required.`,
-//             });
-//         }
-//         const newMessage=new MessageModal({
-//             userId:senderId, 
-//             message
-//         })
-//         const savemessage= await newMessage.save()
-//         let chat=await chatModel.findOne({
-//             members:{
-//                 $all:[senderId, receiverId],
-//                 $size: 2
-//             }
-//         })
-//         if (chat){
-//             chat=await chatModel.findByIdAndUpdate(chat._id,{
-//                 $push:{
-//                     message:savemessage._id
-//                 }
-//             },{new:true})
-//         }else{
-//             chat =new chatModel({
-//                 members:[senderId, receiverId],
-//                 messages:[savemessage._id]
-//             })
-//             await chat.save()
-//         }
-//         return res.status(200).json({
-//             success:true,
-//             message:"Message sent successfully",
-//             data:{
-//                 newMessage: savemessage,
-//                 chat:chat,
-//             },
-//         })
-//     } catch (error) {
-//         console.log("error")
-//         res.status(500).json({
-//             success:false,
-//             message:"Internal server error"
-//         })
-//     }
-// }
-
-
-
-
 const chatModel = require("../models/chatModel");
 const MessageModel = require("../models/messageModel");
 
 
-//post message
+//post message//
 exports.CreateMessage = async (req, res) => {
     try {
         const { senderId, receiverId, message } = req.body;
-        
+
         if (!senderId || !receiverId || !message) {
             return res.status(400).json({
                 success: false,
@@ -71,7 +15,7 @@ exports.CreateMessage = async (req, res) => {
         }
 
         const newMessage = new MessageModel({
-            userId: senderId, 
+            senderId: senderId,
             message
         });
 
@@ -86,12 +30,12 @@ exports.CreateMessage = async (req, res) => {
 
         if (chat) {
             chat = await chatModel.findByIdAndUpdate(
-                chat._id, 
+                chat._id,
                 {
-                $push: {
-                    messages:[saveMessage._id]
-                }
-            }, { new: true });
+                    $push: {
+                        messages: [saveMessage._id]
+                    }
+                }, { new: true });
         } else {
             chat = new chatModel({
                 members: [senderId, receiverId],
@@ -122,10 +66,10 @@ exports.CreateMessage = async (req, res) => {
 exports.GetMessage = async (req, res) => {
     try {
         const { senderId, receiverId } = req.body;
-        if (!senderId || !receiverId) { 
+        if (!senderId || !receiverId) {
             return res.status(400).json({
                 success: false,
-                message: `${senderId ? "Sender Id" : !receiverId ? "Reciever Id ": "Messages"} is required.`,
+                message: `${senderId ? "Sender Id" : !receiverId ? "Reciever Id " : "Messages"} is required.`,
             });
         }
 
@@ -134,25 +78,77 @@ exports.GetMessage = async (req, res) => {
                 $all: [senderId, receiverId],
                 $size: 2
             }
-        }).populate("messages")
+            // }).populate("messages")
+        }).populate({
+            path: "messages",
+            populate: {
+                path: "senderId",   // populate senderId to get user info
+                select: "_id name"  // optionally get the user's name or other fields
+            }
+        });
 
-        if(!chat){
+        if (!chat) {
             return res.status(404).json({
-                success:false,
-                message:"No Conversation found"
+                success: false,
+                message: "No Conversation found"
             })
         }
-        return res.status(200).json({ 
-            success:true,   
-            message:"Conversation found",
-            data:chat.messages
+        return res.status(200).json({
+            success: true,
+            message: "Conversation found",
+            data: chat.messages
         })
     } catch (error) {
-        console.log("err",error)
+        console.log("err", error)
         return res.status(500).json({
-            success:false,
-            message:"Internal server error"
-        }) 
+            success: false,
+            message: "Internal server error"
+        })
     }
 }
 
+
+
+// DELETE: Delete a message
+
+exports.DeleteMessage = async (req, res) => {
+    try {
+        const { messageId } = req.params;
+        const { senderId, receiverId } = req.query;
+
+        if (!messageId || !senderId || !receiverId) {
+            return res.status(400).json({
+                success: false,
+                message: "Required fields missing"
+            });
+        }
+
+        // Delete the message from messages collection
+        const deletedMsg = await MessageModel.findByIdAndDelete(messageId);
+
+        if (!deletedMsg) {
+            return res.status(404).json({
+                success: false,
+                message: "Message not found"
+            });
+        }
+
+        // Remove from chat messages array
+        await chatModel.findOneAndUpdate(
+            { members: { $all: [senderId, receiverId] } },
+            { $pull: { messages: messageId } }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Message deleted successfully",
+            deletedId: messageId
+        });
+    } catch (error) {
+        console.log("DeleteMessage error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};

@@ -26,92 +26,7 @@
 
 // javad------------------------------
 
-// const express = require('express');
-// const connectDB = require('./config/db');
-// const authRoutes = require('./routes/authRoutes');
-// const languageRoutes = require('./routes/languageRoutes');
-// const profileRoutes = require('./routes/profileRoutes');
-// const voiceRoutes = require('./routes/voiceRoutes')
-// const kycRoutes = require('./routes/kycRoutes')
-// const chatRoute = require('./routes/chatRoutes')
-
-// require("dotenv").config();
-// const http = require("http");
-// const { Server } = require("socket.io");
-// const cors = require("cors");
-
-
-// const app = express();
-// connectDB();
-
-// // Middleware
-// app.use(cors());
-// app.use(express.json());
-
-// // Routes
-// app.use('/api/auth', authRoutes);
-// app.use('/api/language', languageRoutes);
-// app.use('/api/profile', profileRoutes);
-// app.use('/api/voice-test',voiceRoutes)
-// app.use('/api/kyc',kycRoutes)
-
-// // mongodb-------
-// const PORT = process.env.PORT || 5000;
-// app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-// const server = http.createServer(app);
-
-
-// // Import Message Model
-// const Message = require("./models/chatModel");
-
-// // Initialize Socket.io
-// const io = new Server(server, {
-//   cors: { origin: "*" },
-// });
-
-// // User Connection Handling
-// io.on("connection", (socket) => {
-//   console.log(`🟢 User Connected: ${socket.id}`);
-
-//   // Store User in Redis
-//   socket.on("userOnline", async (userId) => {
-//     await redisClient.set(userId, socket.id);
-//     console.log(`✅ User ${userId} is online`);
-//   });
-
-//   // Handle Message Sending
-//   socket.on("sendMessage", async (data) => {
-//     const { sender, receiver, message } = data;
-//     console.log("📩 New Message:", data);
-
-//     // Save Message to Database
-//     const newMessage = new Message({ sender, receiver, message });
-//     await newMessage.save();
-
-//     // Check if Receiver is Online
-//     const receiverSocketId = await redisClient.get(receiver);
-//     if (receiverSocketId) {
-//       io.to(receiverSocketId).emit("receiveMessage", data);
-//       console.log(`📤 Message sent to ${receiver}`);
-//     } else {
-//       console.log(`⚠️ User ${receiver} is offline. Message stored.`);
-//     }
-//   });
-
-//   // User Disconnection
-//   socket.on("disconnect", async () => {
-//     console.log(`🔴 User Disconnected: ${socket.id}`);
-//     await redisClient.del(socket.id);
-//   });
-// });
-
-// // Chat Routes
-// app.use("/api/chat", chatRoute);
-
-
-
-
+require("dotenv").config();
 const express = require("express");
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
@@ -122,10 +37,12 @@ const kycRoutes = require("./routes/kycRoutes");
 // const chatRoute = require("./routes/chatRoutes");
 const MessageRoutes = require("./routes/MessageRoutes");
 const { Server } = require('socket.io');
-// const http = require('http'); // already required above
+
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
 
 
-require("dotenv").config();
+
 const http = require("http");
 const cors = require("cors");
 // const { default: MessageRoutes } = require("./routes/MessageRoutes");
@@ -144,6 +61,53 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/voice-test", voiceRoutes);
 app.use("/api/kyc", kycRoutes);
 app.use("/api/messages", MessageRoutes);
+
+
+//razorpay
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_SECRET,
+});
+
+// Create order endpoint
+app.post('/create-order', async (req, res) => {
+  const { amount, currency, receipt } = req.body;
+
+  try {
+    const options = {
+      amount: amount * 100, 
+      currency,
+      receipt,
+    };
+
+    const order = await razorpay.orders.create(options);
+    res.json(order);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Error creating order');
+  }
+});
+
+
+
+// Verify payment signature endpoint
+app.post('/verify', (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+  const expectedSignature = crypto
+    .createHmac('sha256', process.env.RAZORPAY_SECRET)
+    .update(body.toString())
+    .digest('hex');
+
+  if (expectedSignature === razorpay_signature) {
+    res.json({ status: 'success' });
+  } else {
+    res.status(400).json({ status: 'failure' });
+  }
+});
+
+
 
 
 // Start Server
@@ -173,4 +137,3 @@ io.on("connection",(socket)=>{
 
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-

@@ -8,15 +8,17 @@
 
 
 const express = require('express');
-const { CreateMessage ,GetMessage} = require('../controllers/messageController');
+const {
+    CreateMessage,
+    GetMessage,
+    DeleteMessage
+} = require('../controllers/messageController');
 
 const router = express.Router();
 
-console.log("Message Routes Loaded");
-
 router.post('/create-message', CreateMessage);
 router.post('/get-message', GetMessage);
+router.delete('/delete-message/:messageId', DeleteMessage);
 
 module.exports = router;
 
-// export  default router
